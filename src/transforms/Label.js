@@ -9,7 +9,9 @@ function Label(graph) {
   Transform.addParameters(this, {
     buffer: {type: 'value', default: 10},
     anchor: {type: 'value', default: 'auto'},
-    offset: {type: 'value', default: 10}
+    offset: {type: 'value', default: 10},
+    color: {type: 'value', default: 'black'},
+    align: {type: 'value', default: 'center'}
   });
 
   return this.mutates(true);
@@ -27,7 +29,9 @@ prototype.batchTransform = function(input, data) {
   var buffer = this.param('buffer'),
       anchor = this.param('anchor'),
       offset = this.param('offset'),
-      xc, yc, color;
+      align = this.param('align'),
+      color = this.param('color'),
+      xc, yc;
       
   data.forEach(function(datum, idx, arr) {
     switch (datum.mark.name) {
@@ -44,17 +48,19 @@ prototype.batchTransform = function(input, data) {
     }
     
     xc = datum.xc;
-    yc = (datum.y2 - datum.y) / 2;
+    yc = datum.y;
     
     Tuple.set(datum, 'label_xc', xc);
     Tuple.set(datum, 'label_yc', yc);
-    Tuple.set(datum, 'color', color);
+    Tuple.set(datum, 'label_color', color);
+    Tuple.set(datum, 'label_align', align);
   });
   
 
   input.fields['label_xc'] = 1;
   input.fields['label_yc'] = 1;
-  input.fields['color'] = 1;
+  input.fields['label_align'] = 1;
+  input.fields['label_color'] = 1;
   return input;
 };
 
