@@ -21,23 +21,32 @@ function Label(graph) {
 var prototype = (Label.prototype = Object.create(BatchTransform.prototype));
 prototype.constructor = Label;
 
+function boxInBox(small, big) {
+  console.log(small, big);
+  return small.x1 >= big.x1 &&
+         small.x2 <= big.x2 &&
+         small.y1 >= big.y1 &&
+         small.y2 <= big.y2;
+}
+
 prototype.batchTransform = function(input, data) {
-  var LABEL = { // constants to change/adjust based on font
-    height: 20,
-    width: 100
-  }
-  
   var buffer  = this.param('buffer'),
       anchor  = this.param('anchor'),
       offset  = this.param('offset'),
       align   = this.param('align'),
       color   = this.param('color'),
-      opacity = this.param('opacity'),
-      xc, yc;
+      opacity = this.param('opacity');
       
   data.forEach(function(datum, idx, arr) {
-    switch (datum.mark.name) {
+    var xc = datum.xc,
+        yc = datum.y;
+    
+    switch (datum.mark.marktype) {
       case 'rect':
+        var inside = boxInBox(bbox(), datum.bounds);
+        console.log(inside, datum);
+        yc += offset * (datum.height < (datum.bounds.y2 - datum.bounds.y1) ? 1 : -1);
+        break;
       case 'symbol':
       case 'path':
       case 'arc':
@@ -49,17 +58,22 @@ prototype.batchTransform = function(input, data) {
       break;
     }
     
-    xc = datum.xc;
-    yc = datum.y;
-    
     Tuple.set(datum, 'label_xc', xc);
     Tuple.set(datum, 'label_yc', yc);
     Tuple.set(datum, 'label_color', color);
     Tuple.set(datum, 'label_opacity', opacity);
     Tuple.set(datum, 'label_align', align);
+    
+    function bbox() {
+      return {
+        x1: xc - datum.width/2,
+        x2: xc + datum.width/2,
+        y1: yc - datum.height/2,
+        y2: yc + datum.height/2
+      }
+    }
   });
   
-
   input.fields['label_xc'] = 1;
   input.fields['label_yc'] = 1;
   input.fields['label_align'] = 1;
