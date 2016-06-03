@@ -7,11 +7,12 @@ var dl = require('datalib'),
 function Label(graph) {
   BatchTransform.prototype.init.call(this, graph);
   Transform.addParameters(this, {
-    buffer: {type: 'value', default: 10},
-    anchor: {type: 'value', default: 'auto'},
-    offset: {type: 'value', default: 10},
-    color: {type: 'value', default: 'black'},
-    align: {type: 'value', default: 'center'}
+    buffer:  {type: 'value', default: 10},
+    anchor:  {type: 'value', default: 'auto'},
+    offset:  {type: 'value', default: 10},
+    color:   {type: 'value', default: 'black'},
+    opacity: {type: 'value', default: 1},
+    align:   {type: 'value', default: 'center'}
   });
 
   return this.mutates(true);
@@ -26,11 +27,12 @@ prototype.batchTransform = function(input, data) {
     width: 100
   }
   
-  var buffer = this.param('buffer'),
-      anchor = this.param('anchor'),
-      offset = this.param('offset'),
-      align = this.param('align'),
-      color = this.param('color'),
+  var buffer  = this.param('buffer'),
+      anchor  = this.param('anchor'),
+      offset  = this.param('offset'),
+      align   = this.param('align'),
+      color   = this.param('color'),
+      opacity = this.param('opacity'),
       xc, yc;
       
   data.forEach(function(datum, idx, arr) {
@@ -53,6 +55,7 @@ prototype.batchTransform = function(input, data) {
     Tuple.set(datum, 'label_xc', xc);
     Tuple.set(datum, 'label_yc', yc);
     Tuple.set(datum, 'label_color', color);
+    Tuple.set(datum, 'label_opacity', opacity);
     Tuple.set(datum, 'label_align', align);
   });
   
@@ -61,6 +64,7 @@ prototype.batchTransform = function(input, data) {
   input.fields['label_yc'] = 1;
   input.fields['label_align'] = 1;
   input.fields['label_color'] = 1;
+  input.fields['label_opacity'] = 1;
   return input;
 };
 
@@ -103,13 +107,45 @@ Label.schema = {
       ],
       "default": 10,
     },
+    "opacity": {
+      "oneOf": [
+        {
+          "type": "number",
+          "minimum": 0
+        },
+        {"$ref": "#/refs/signal"}
+      ],
+      "default": 1,
+    },
+    "color": {
+      "oneOf": [
+        {
+          "type": "string",
+          "minimum": 0
+        },
+        {"$ref": "#/refs/signal"}
+      ],
+      "default": 'black',
+    },
+    "align": {
+      "oneOf": [
+        {
+          "type": "string",
+          "minimum": 0
+        },
+        {"$ref": "#/refs/signal"}
+      ],
+      "default": 'center',
+    },
     "output": {
       "type": "object",
       "description": "Rename the output data fields",
       "properties": {
         "xc": {"type": "string", "default": 0},
         "yc": {"type": "string", "default": 0},
-        "color": {"type": "string", "default": "black"}
+        "color": {"type": "string", "default": "black"},
+        "align": {"type": "string", "default": "black"},
+        "opacity": {"type": "string", "default": 1}
       }
     }
   },
