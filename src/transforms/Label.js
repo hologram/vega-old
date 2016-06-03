@@ -90,12 +90,12 @@ Label.schema = {
     "anchor": {
       "oneOf": [
         {
-          "type": "number",
+          "type": "string",
           "minimum": 0
         },
         {"$ref": "#/refs/signal"}
       ],
-      "default": 10,
+      "default": 'auto',
     },
     "offset": {
       "oneOf": [
