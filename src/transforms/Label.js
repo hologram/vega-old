@@ -38,7 +38,8 @@ prototype.batchTransform = function(input, data) {
 			_offset      = this.param('offset'),
 			_color       = this.param('color'),
 			_opacity     = this.param('opacity'),
-      _baseline     = null;
+      _baseline    = null,
+			_align 		 	 = null;
 			
 	var allLabels = data[0].mark.items;
 	var allMarks = data[0].datum.mark.items;
@@ -55,9 +56,10 @@ prototype.batchTransform = function(input, data) {
 		
 		var opacity = _opacity;
     var baseline = _baseline;
-		label.bounds = center(label.bounds, position(mark, anchor, offset, baseline));
+    var align = _align;
+		label.bounds = center(label.bounds, position(mark, anchor, offset));
 		
-		var pos = position(mark, anchor, offset, baseline);
+		var pos = position(mark, anchor, offset);
 		
 		switch (mark.mark.marktype) {
 			case 'rect':			
@@ -69,7 +71,6 @@ prototype.batchTransform = function(input, data) {
 				if (horizontalCondition || verticalCondition) {
 					offset *= -1;
 					color = '#000000';
-          baseline = 'bottom';
 				} else if (!boxInBox(label.bounds, mark.bounds)) {
 					color = '#000000';
 				}
@@ -103,7 +104,7 @@ prototype.batchTransform = function(input, data) {
 					nextIndex = i - allAnchors.length;
 				}
 				var testAnchor = allAnchors[nextIndex];
-				label.bounds = center(label.bounds, position(mark, testAnchor, offset, baseline));      
+				label.bounds = center(label.bounds, position(mark, testAnchor, offset));      
 				var check = checkOcclusion(label, allMarks.concat(allLabels.concat(newLabels)));
 				
 				if (check < fewest) {
@@ -118,14 +119,14 @@ prototype.batchTransform = function(input, data) {
 				opacity = 0;
 			} 
 			
-			label.bounds = center(label.bounds, position(mark, bestAnchor, offset, baseline));
+			label.bounds = center(label.bounds, position(mark, bestAnchor, offset));
       anchor = bestAnchor;
 		}
     
     newLabels.push(label);    
     
-    pos = position(mark, anchor, offset, baseline);
-				
+    pos = position(mark, anchor, offset);
+		
 		Tuple.set(label, 'label_xc', pos.x);
 		Tuple.set(label, 'label_yc', pos.y);
 		Tuple.set(label, 'label_color', color);
@@ -227,12 +228,11 @@ function dimensions(m) {
   }
 }
 
-function position(m, anchor, offset, baseline) {  
+function position(m, anchor, offset) {  
   var point = (m.mark.marktype === 'line');
 	var pos = point ? {'x': m.x, 'y': m.y} : {};
 	
 	var partial = Math.floor(Math.sqrt(Math.pow(offset, 2)/2));
-  console.log(m);
 	
 	switch (anchor) {
 		case 'top-left':
@@ -247,11 +247,11 @@ function position(m, anchor, offset, baseline) {
 			pos.x = point ? pos.x : ((m.bounds.x2 - m.bounds.x1) / 2 + m.bounds.x1);
 			pos.y = point ? pos.y : (m.bounds.y1);
 			pos.y -= offset;
-			pos.baseline = 'top';
+			pos.baseline = offset < 0 ? 'top' : 'bottom';
 			pos.align = 'center';
 			break;
 		case 'top-right':
-			pos.x = point ? pos.x : ((m.bounds.x2 - m.bounds.x1) / 2 + m.bounds.x1);
+			pos.x = point ? pos.x : (m.bounds.x2);
 			pos.y = point ? pos.y : (m.bounds.y1);
 			pos.x += partial;
 			pos.y -= partial;
@@ -263,7 +263,7 @@ function position(m, anchor, offset, baseline) {
 			pos.x -= offset;
 			pos.y = point ? pos.y : ((m.bounds.y2 - m.bounds.y1) / 2 + m.bounds.y1);
 			pos.baseline = 'middle';
-			pos.align = 'right';
+			pos.align = offset < 0 ? 'left' : 'right';
 			break;
 	 case 'center':
 			pos.x = point ? pos.x : ((m.bounds.x2 - m.bounds.x1) / 2 + m.bounds.x1);
@@ -272,11 +272,11 @@ function position(m, anchor, offset, baseline) {
 			pos.align = 'center';
 			break;
 		case 'right':
-			pos.x = point ? pos.x : ((m.bounds.x2 - m.bounds.x1) / 2 + m.bounds.x1);
+			pos.x = point ? pos.x : (m.bounds.x2);
 			pos.y = point ? pos.y : ((m.bounds.y2 - m.bounds.y1) / 2 + m.bounds.y1);
 			pos.x += offset;
 			pos.baseline = 'middle';
-			pos.align = 'left';
+			pos.align = offset < 0 ? 'right' : 'left';
 			break;
 		case 'bottom-left':
 			pos.x = point ? pos.x : (m.bounds.x1);
@@ -290,11 +290,11 @@ function position(m, anchor, offset, baseline) {
 			pos.x = point ? pos.x : ((m.bounds.x2 - m.bounds.x1) / 2 + m.bounds.x1);
 			pos.y = point ? pos.y : (m.bounds.y2);
 			pos.y += offset;
-			pos.baseline = 'bottom';
+			pos.baseline = offset < 0 ? 'bottom' : 'top';
 			pos.align = 'center';
 			break;
 		case 'bottom-right':
-			pos.x = point ? pos.x : ((m.bounds.x2 - m.bounds.x1) / 2 + m.bounds.x1);
+			pos.x = point ? pos.x : (m.bounds.x2);
 			pos.y = point ? pos.y : (m.bounds.y2);
 			pos.x += partial;
 			pos.y += partial;
@@ -304,8 +304,6 @@ function position(m, anchor, offset, baseline) {
 		default:
 			console.error("error, invalid anchor");
 	}
-  
-  pos.baseline = baseline || pos.baseline;
 	
 	return pos;
 }
