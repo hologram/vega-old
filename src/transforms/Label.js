@@ -2,17 +2,20 @@ var dl = require('datalib'),
     Tuple = require('vega-dataflow').Tuple,
     log = require('vega-logging'),
     Transform = require('./Transform'),
-    BatchTransform = require('./BatchTransform');
+    BatchTransform = require('./BatchTransform')
 
 function Label(graph) {
+  console.log('LABEL');
+  
   BatchTransform.prototype.init.call(this, graph);
   Transform.addParameters(this, {
-    buffer:  {type: 'value', default: 10},
-    anchor:  {type: 'value', default: 'auto'},
-    offset:  {type: 'value', default: 10},
-    color:   {type: 'value', default: 'black'},
-    opacity: {type: 'value', default: 1},
-    align:   {type: 'value', default: 'center'}
+    buffer:      {type: 'value', default: 10},
+    anchor:      {type: 'value', default: 'auto'},
+    offset:      {type: 'value', default: 'auto'},
+    color:       {type: 'value', default: 'black'},
+    opacity:     {type: 'value', default: 1},
+    align:       {type: 'value', default: 'center'},
+    orientation: {type: 'value', default: 'vertical'}
   });
 
   return this.mutates(true);
@@ -21,38 +24,94 @@ function Label(graph) {
 var prototype = (Label.prototype = Object.create(BatchTransform.prototype));
 prototype.constructor = Label;
 
-function boxInBox(small, big) {
-  console.log(small, big);
-  return small.x1 >= big.x1 &&
-         small.x2 <= big.x2 &&
-         small.y1 >= big.y1 &&
-         small.y2 <= big.y2;
+function autoOffset(mark, orientation) {
+  switch (mark.mark.marktype) {
+    case 'rect':
+      return orientation == 'horizontal' ? 10 : -10;
+    case 'symbol':
+    case 'path':
+    case 'arc':
+    case 'area':
+    case 'line':
+    case 'rule':
+    case 'image':
+    default:
+      return 0;
+  }
+}
+
+function autoAnchor(mark, orientation) {
+  switch (mark.mark.marktype) {
+    case 'rect':
+      if (orientation == 'horizontal') {
+        return 'right';
+      } else {
+        return 'top';
+      }
+    case 'symbol':
+    case 'path':
+    case 'arc':
+    case 'area':
+    case 'line':
+    case 'rule':
+    case 'image':
+    default:
+      return 0;
+  }
+}
+
+function autoColor(mark, label) {
+  switch (mark.mark.marktype) {
+    case 'rect':
+    case 'symbol':
+    case 'path':
+    case 'arc':
+    case 'area':
+    case 'line':
+    case 'rule':
+    case 'image':
+    default:
+      return '#000';
+  }
+}
+
+function dimensions(g) {
+  return {
+    width: (g.bounds.x2 - g.bounds.x1),
+    height: (g.bounds.y2 - g.bounds.y1)
+  }
 }
 
 prototype.batchTransform = function(input, data) {
-  var buffer  = this.param('buffer'),
-      anchor  = this.param('anchor'),
-      offset  = this.param('offset'),
-      align   = this.param('align'),
-      color   = this.param('color'),
-      opacity = this.param('opacity');
-
-  var labels = data;
-  var allLabels = labels[0].mark.items;
+  var _buffer     = this.param('buffer'),
+      _anchor     = this.param('anchor'),
+      _offset     = this.param('offset'),
+      _align      = this.param('align'),
+      _color      = this.param('color'),
+      _opacity    = this.param('opacity');
+      _orientation = this.param('orientation');  
+      
+  var allLabels = data[0].mark.items;
   
-  labels.forEach(function(label, idx, arr) {      
+  data.forEach(function(label, idx, arr) {      
     var mark = label.datum;
     var allMarks = mark.mark.items;
     
-    var pos = position(mark, anchor, offset);
-    var xc = pos.x;
-    var yc = pos.y;
-    
+    var color = _color == 'auto' ? autoColor(mark, label) : _color;
+    var offset = _offset == 'auto' ? autoOffset(mark, _orientation) : _offset;
+    var anchor = _anchor == 'auto' ? autoAnchor(mark, _orientation) : _anchor;
+             
     switch (mark.mark.marktype) {
       case 'rect':
-        var inside = boxInBox(center(label.bounds, [xc, yc]), mark.bounds);
-        console.log(inside, mark);
-        yc = inside ? yc : (yc + (offset * 2));
+        var horizontalCondition = _orientation == 'horizontal' 
+            && (dimensions(mark).width < dimensions(label).width);
+        var verticalCondition = _orientation == 'vertical' 
+            && (dimensions(mark).height < dimensions(label).height);
+        if (horizontalCondition || verticalCondition) {
+          console.log('inside');
+          offset *= -1;
+          color = '#000000';
+        }       
         break;
       case 'symbol':
       case 'path':
@@ -65,13 +124,14 @@ prototype.batchTransform = function(input, data) {
         break;
     }
     
-    console.log('[' + xc + ', ' + yc + ']')
- 
-    Tuple.set(label, 'label_xc', xc);
-    Tuple.set(label, 'label_yc', yc);
+    console.log(offset);
+    var pos = position(mark, anchor, offset);
+    
+    Tuple.set(label, 'label_xc', pos.x);
+    Tuple.set(label, 'label_yc', pos.y);
     Tuple.set(label, 'label_color', color);
-    Tuple.set(label, 'label_opacity', opacity);
-    Tuple.set(label, 'label_align', align);
+    Tuple.set(label, 'label_opacity', _opacity);
+    Tuple.set(label, 'label_align', _align);
   });
 
   
@@ -83,14 +143,21 @@ prototype.batchTransform = function(input, data) {
   return input;
 };
 
-function center(m, c) {
+function boxInBox(small, big) {
+  return small.x1 >= big.x1 &&
+         small.x2 <= big.x2 &&
+         small.y1 >= big.y1 &&
+         small.y2 <= big.y2;
+}
+
+function center(m, pos) {
   var width = m.x2 - m.x1;
   var height = m.y2 - m.y1;
   return {
-    x1: c[0] - width/2,
-    x2: c[0] + width/2,
-    y1: c[0] - height/2,
-    y2: c[0] + height/2
+    x1: pos.x - width/2,
+    x2: pos.x + width/2,
+    y1: pos.y - height/2,
+    y2: pos.y + height/2
   }
 }
 
@@ -152,7 +219,7 @@ function position(m, anchor, offset) {
     case 'center':
       break;
     default:
-      var partial = Math.floor(Math.sqrt(hyp/2));
+      var partial = Math.floor(Math.sqrt(offset/2));
       pos.x += partial;
       pos.y += partial;
       break;
@@ -183,12 +250,11 @@ Label.schema = {
     "anchor": {
       "oneOf": [
         {
-          "type": "string",
-          "minimum": 0
+          "type": "string"
         },
         {"$ref": "#/refs/signal"}
       ],
-      "default": 'auto',
+      "default": "auto",
     },
     "offset": {
       "oneOf": [
@@ -198,7 +264,7 @@ Label.schema = {
         },
         {"$ref": "#/refs/signal"}
       ],
-      "default": 10,
+      "default": "auto",
     },
     "opacity": {
       "oneOf": [
@@ -213,8 +279,7 @@ Label.schema = {
     "color": {
       "oneOf": [
         {
-          "type": "string",
-          "minimum": 0
+          "type": "string"
         },
         {"$ref": "#/refs/signal"}
       ],
@@ -223,12 +288,20 @@ Label.schema = {
     "align": {
       "oneOf": [
         {
-          "type": "string",
-          "minimum": 0
+          "type": "string"
         },
         {"$ref": "#/refs/signal"}
       ],
       "default": 'center',
+    },
+    "orientation": {
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {"$ref": "#/refs/signal"}
+      ],
+      "default": 'vertical',
     },
     "output": {
       "type": "object",
