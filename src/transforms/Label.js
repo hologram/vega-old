@@ -36,16 +36,23 @@ prototype.batchTransform = function(input, data) {
       align   = this.param('align'),
       color   = this.param('color'),
       opacity = this.param('opacity');
-      
-  data.forEach(function(datum, idx, arr) {
-    var xc = datum.xc,
-        yc = datum.y;
+
+  var labels = data;
+  var allLabels = labels[0].mark.items;
+  
+  labels.forEach(function(label, idx, arr) {      
+    var mark = label.datum;
+    var allMarks = mark.mark.items;
     
-    switch (datum.mark.marktype) {
+    var pos = position(mark, anchor, offset);
+    var xc = pos.x;
+    var yc = pos.y;
+    
+    switch (mark.mark.marktype) {
       case 'rect':
-        var inside = boxInBox(bbox(), datum.bounds);
-        console.log(inside, datum);
-        yc += offset * (datum.height < (datum.bounds.y2 - datum.bounds.y1) ? 1 : -1);
+        var inside = boxInBox(center(label.bounds, [xc, yc]), mark.bounds);
+        console.log(inside, mark);
+        yc = inside ? yc : (yc + (offset * 2));
         break;
       case 'symbol':
       case 'path':
@@ -55,24 +62,18 @@ prototype.batchTransform = function(input, data) {
       case 'rule':
       case 'image':
       default:
-      break;
+        break;
     }
     
-    Tuple.set(datum, 'label_xc', xc);
-    Tuple.set(datum, 'label_yc', yc);
-    Tuple.set(datum, 'label_color', color);
-    Tuple.set(datum, 'label_opacity', opacity);
-    Tuple.set(datum, 'label_align', align);
-    
-    function bbox() {
-      return {
-        x1: xc - datum.width/2,
-        x2: xc + datum.width/2,
-        y1: yc - datum.height/2,
-        y2: yc + datum.height/2
-      }
-    }
+    console.log('[' + xc + ', ' + yc + ']')
+ 
+    Tuple.set(label, 'label_xc', xc);
+    Tuple.set(label, 'label_yc', yc);
+    Tuple.set(label, 'label_color', color);
+    Tuple.set(label, 'label_opacity', opacity);
+    Tuple.set(label, 'label_align', align);
   });
+
   
   input.fields['label_xc'] = 1;
   input.fields['label_yc'] = 1;
@@ -81,6 +82,84 @@ prototype.batchTransform = function(input, data) {
   input.fields['label_opacity'] = 1;
   return input;
 };
+
+function center(m, c) {
+  var width = m.x2 - m.x1;
+  var height = m.y2 - m.y1;
+  return {
+    x1: c[0] - width/2,
+    x2: c[0] + width/2,
+    y1: c[0] - height/2,
+    y2: c[0] + height/2
+  }
+}
+
+function position(m, anchor, offset) {
+  var pos = {x: 0, y: 0};
+  
+  // handle y
+  switch (anchor) {
+    case 'top-left':
+    case 'top':
+    case 'top-right':
+      pos.y = m.bounds.y1;
+      break;
+    case 'left':
+    case 'center':
+    case 'right':
+      pos.y = (m.bounds.y2 - m.bounds.y1) / 2 + m.bounds.y1;
+      break;
+    case 'bottom-left':
+    case 'bottom':
+    case 'bottom-right':
+      pos.y = m.bounds.y2;
+      break;
+  }
+  
+  // handle x
+  switch (anchor) {
+    case 'top-left':
+    case 'left':
+    case 'bottom-left':
+      pos.x = m.bounds.x1;
+      break;
+    case 'top':
+    case 'center':
+    case 'bottom':
+      pos.x = (m.bounds.x2 - m.bounds.x1) / 2 + m.bounds.x1;
+      break;
+    case 'top-right':
+    case 'right':
+    case 'bottom-right':
+      pos.x = m.bounds.x2;
+      break;
+  }
+  
+  // handle offset
+  switch (anchor) {
+    case 'top':
+      pos.y -= offset;
+      break;
+    case 'bottom':
+      pos.y += offset;
+      break;
+    case 'right':
+      pos.x -= offset;
+      break;
+    case 'left':
+      pos.x += offset;
+      break;
+    case 'center':
+      break;
+    default:
+      var partial = Math.floor(Math.sqrt(hyp/2));
+      pos.x += partial;
+      pos.y += partial;
+      break;
+  }
+  
+  return pos;
+}
 
 module.exports = Label;
 
