@@ -8,13 +8,12 @@ var ANCHORS = [
   'top-left',
   'top',
   'top-right',
-  'left',
-  'center',
   'right',
-  'bottom-left',
+  'bottom-right',
   'bottom',
-  'bottom-right'
-]
+  'bottom-left',
+  'left',
+] // excluded `center` for priority checking
 
 function Label(graph) {  
   BatchTransform.prototype.init.call(this, graph);
@@ -100,11 +99,9 @@ prototype.batchTransform = function(input, data) {
   var allMarks = data[0].datum.mark.items;
 
   data.forEach(function(label, idx, arr) {
-    label.bounds = center(label.bounds, position(mark, anchor, offset));
-        
     var mark = label.datum;
     mark.bounds.width = mark.bounds.x2 - mark.bounds.x1;
-    mark.bounds.height = mark.bounds.y2 - mark.bounds.x2;   
+    mark.bounds.height = mark.bounds.y2 - mark.bounds.x2; 
     
     var color = _color == 'auto' ? autoColor(mark, label) : _color;
     var anchor = _anchor == 'auto' ? autoAnchor(mark, _orientation) : _anchor;
@@ -112,6 +109,11 @@ prototype.batchTransform = function(input, data) {
     var offset = _offset == 'auto' ? autoOffset(mark, _orientation) : _offset;
     offset *= ((_orientation == 'horizontal') ? -1 : 1);
     
+    var opacity = _opacity;
+    
+    label.bounds = center(label.bounds, position(mark, anchor, offset));
+    
+    var pos = position(mark, anchor, offset);
              
     switch (mark.mark.marktype) {
       case 'rect':
@@ -127,11 +129,38 @@ prototype.batchTransform = function(input, data) {
         } else if (!boxInBox(label.bounds, mark.bounds)) {
           color = '#000000';
         }
+        
+        pos = position(mark, anchor, offset);
         break;
         
       case 'symbol':
-        console.log(checkOcclusion(label, allMarks.concat(allLabels)));
+        var fewest = allLabels.length;
+        var bestAnchor = anchor;
         
+        var i = 0;
+        while (i < ANCHORS.length && fewest != 0) {
+          var testAnchor = ANCHORS[ANCHORS.indexOf(anchor) + i];
+          label.bounds = center(label.bounds, position(mark, testAnchor, offset));      
+          var check = checkOcclusion(label, allMarks.concat(allLabels));
+          
+          if (check < fewest) {
+            bestAnchor = testAnchor;
+            fewest = check;
+          }
+          
+          i++;
+        }
+        
+        if (fewest != 0) {
+          opacity = 0;
+        } 
+        
+        label.bounds = center(label.bounds, position(mark, bestAnchor, offset));
+        pos = position(mark, bestAnchor, offset);
+        if (label.text == 36) {
+          console.log(bestAnchor, pos);
+        }
+        break;
       case 'path':
       case 'arc':
       case 'area':
@@ -142,12 +171,12 @@ prototype.batchTransform = function(input, data) {
         break;
     }
     
-    var pos = position(mark, anchor, offset);
     
     Tuple.set(label, 'label_xc', pos.x);
     Tuple.set(label, 'label_yc', pos.y);
     Tuple.set(label, 'label_color', color);
-    Tuple.set(label, 'label_opacity', _opacity);
+    Tuple.set(label, 'label_opacity', opacity);
+    Tuple.set(label, 'label_baseline', pos.baseline);
     Tuple.set(label, 'label_align', _align);
   });
 
@@ -163,7 +192,9 @@ prototype.batchTransform = function(input, data) {
 function checkOcclusion(label, scene) {
   var occlusions = 0;
   scene.forEach(function(item) {
-    occlusions += occludes(label.bounds, item.bounds) ? 1 : 0;
+    if (label._id != item._id && occludes(label.bounds, item.bounds)) {
+      occlusions += 1;
+    }
   });
   return occlusions;
 }
@@ -202,48 +233,57 @@ function position(m, anchor, offset) {
       pos.y = m.bounds.y1;
       pos.x -= partial;
       pos.y -= partial;
+      pos.baseline = 'top';
       break;
     case 'top':
       pos.x = (m.bounds.x2 - m.bounds.x1) / 2 + m.bounds.x1;
       pos.y = m.bounds.y1;
       pos.y -= offset;
+      pos.baseline = 'top';
       break;
     case 'top-right':
       pos.x = (m.bounds.x2 - m.bounds.x1) / 2 + m.bounds.x1;
       pos.y = m.bounds.y1;
       pos.x += partial;
       pos.y -= partial;
+      pos.baseline = 'top';
       break;
     case 'left':
       pos.x = m.bounds.x1;
       pos.x -= offset;
       pos.y = (m.bounds.y2 - m.bounds.y1) / 2 + m.bounds.y1;
+      pos.baseline = 'middle';
       break;
    case 'center':
       pos.x = (m.bounds.x2 - m.bounds.x1) / 2 + m.bounds.x1;
       pos.y = (m.bounds.y2 - m.bounds.y1) / 2 + m.bounds.y1;
+      pos.baseline = 'middle';
       break;
     case 'right':
       pos.x = (m.bounds.x2 - m.bounds.x1) / 2 + m.bounds.x1;
       pos.y = (m.bounds.y2 - m.bounds.y1) / 2 + m.bounds.y1;
       pos.x += offset;
+      pos.baseline = 'middle';
       break;
     case 'bottom-left':
       pos.x = m.bounds.x1;
       pos.y = m.bounds.y2;
       pos.x -= partial;
       pos.y += partial;     
+      pos.baseline = 'bottom';
       break;
     case 'bottom':
       pos.x = (m.bounds.x2 - m.bounds.x1) / 2 + m.bounds.x1;
       pos.y = m.bounds.y2;
       pos.y += offset;
+      pos.baseline = 'bottom';
       break;
     case 'bottom-right':
       pos.x = (m.bounds.x2 - m.bounds.x1) / 2 + m.bounds.x1;
       pos.y = m.bounds.y2;
       pos.x += partial;
       pos.y += partial;
+      pos.baseline = 'bottom';
       break;
   }
   
@@ -333,6 +373,7 @@ Label.schema = {
         "yc": {"type": "string", "default": 0},
         "color": {"type": "string", "default": "black"},
         "align": {"type": "string", "default": "black"},
+        "baseline": {"type": "string", "default": "middle"},
         "opacity": {"type": "string", "default": 1}
       }
     }
