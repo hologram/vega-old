@@ -4,9 +4,19 @@ var dl = require('datalib'),
     Transform = require('./Transform'),
     BatchTransform = require('./BatchTransform')
 
-function Label(graph) {
-  console.log('LABEL');
-  
+var ANCHORS = [
+  'top-left',
+  'top',
+  'top-right',
+  'left',
+  'center',
+  'right',
+  'bottom-left',
+  'bottom',
+  'bottom-right'
+]
+
+function Label(graph) {  
   BatchTransform.prototype.init.call(this, graph);
   Transform.addParameters(this, {
     buffer:      {type: 'value', default: 10},
@@ -29,6 +39,7 @@ function autoOffset(mark, orientation) {
     case 'rect':
       return orientation == 'horizontal' ? 10 : -10;
     case 'symbol':
+      return 10;
     case 'path':
     case 'arc':
     case 'area':
@@ -49,6 +60,7 @@ function autoAnchor(mark, orientation) {
         return 'top';
       }
     case 'symbol':
+      return 'right';
     case 'path':
     case 'arc':
     case 'area':
@@ -75,45 +87,51 @@ function autoColor(mark, label) {
   }
 }
 
-function dimensions(g) {
-  return {
-    width: (g.bounds.x2 - g.bounds.x1),
-    height: (g.bounds.y2 - g.bounds.y1)
-  }
-}
-
 prototype.batchTransform = function(input, data) {
-  var _buffer     = this.param('buffer'),
-      _anchor     = this.param('anchor'),
-      _offset     = this.param('offset'),
-      _align      = this.param('align'),
-      _color      = this.param('color'),
-      _opacity    = this.param('opacity');
-      _orientation = this.param('orientation');  
+  var _orientation = this.param('orientation');  
+      _buffer      = this.param('buffer'),
+      _anchor      = this.param('anchor'),
+      _offset      = this.param('offset'),
+      _align       = this.param('align'),
+      _color       = this.param('color'),
+      _opacity     = this.param('opacity');
       
   var allLabels = data[0].mark.items;
-  
-  data.forEach(function(label, idx, arr) {      
+  var allMarks = data[0].datum.mark.items;
+
+  data.forEach(function(label, idx, arr) {
+    label.bounds = center(label.bounds, position(mark, anchor, offset));
+        
     var mark = label.datum;
-    var allMarks = mark.mark.items;
+    mark.bounds.width = mark.bounds.x2 - mark.bounds.x1;
+    mark.bounds.height = mark.bounds.y2 - mark.bounds.x2;   
     
     var color = _color == 'auto' ? autoColor(mark, label) : _color;
-    var offset = _offset == 'auto' ? autoOffset(mark, _orientation) : _offset;
     var anchor = _anchor == 'auto' ? autoAnchor(mark, _orientation) : _anchor;
+    
+    var offset = _offset == 'auto' ? autoOffset(mark, _orientation) : _offset;
+    offset *= ((_orientation == 'horizontal') ? -1 : 1);
+    
              
     switch (mark.mark.marktype) {
       case 'rect':
         var horizontalCondition = _orientation == 'horizontal' 
-            && (dimensions(mark).width < dimensions(label).width);
+            && (mark.bounds.width < label.bounds.width);
         var verticalCondition = _orientation == 'vertical' 
-            && (dimensions(mark).height < dimensions(label).height);
+            && (mark.bounds.height < label.bounds.height);
+        
         if (horizontalCondition || verticalCondition) {
           console.log('inside');
           offset *= -1;
           color = '#000000';
-        }       
+        } else if (!boxInBox(label.bounds, mark.bounds)) {
+          color = '#000000';
+        }
         break;
+        
       case 'symbol':
+        console.log(checkOcclusion(label, allMarks.concat(allLabels)));
+        
       case 'path':
       case 'arc':
       case 'area':
@@ -124,7 +142,6 @@ prototype.batchTransform = function(input, data) {
         break;
     }
     
-    console.log(offset);
     var pos = position(mark, anchor, offset);
     
     Tuple.set(label, 'label_xc', pos.x);
@@ -143,6 +160,18 @@ prototype.batchTransform = function(input, data) {
   return input;
 };
 
+function checkOcclusion(label, scene) {
+  var occlusions = 0;
+  scene.forEach(function(item) {
+    occlusions += occludes(label.bounds, item.bounds) ? 1 : 0;
+  });
+  return occlusions;
+}
+
+function occludes(a, b) {
+  return a.x1 < b.x2 && a.x2 > b.x1 && a.y1 < b.y2 && a.y2 > b.y1;
+}
+
 function boxInBox(small, big) {
   return small.x1 >= big.x1 &&
          small.x2 <= big.x2 &&
@@ -157,69 +186,62 @@ function center(m, pos) {
     x1: pos.x - width/2,
     x2: pos.x + width/2,
     y1: pos.y - height/2,
-    y2: pos.y + height/2
+    y2: pos.y + height/2,
+    width: width,
+    height: height
   }
 }
 
 function position(m, anchor, offset) {
   var pos = {x: 0, y: 0};
-  
-  // handle y
+  var partial = Math.floor(Math.sqrt(offset/2));
+
   switch (anchor) {
     case 'top-left':
-    case 'top':
-    case 'top-right':
-      pos.y = m.bounds.y1;
-      break;
-    case 'left':
-    case 'center':
-    case 'right':
-      pos.y = (m.bounds.y2 - m.bounds.y1) / 2 + m.bounds.y1;
-      break;
-    case 'bottom-left':
-    case 'bottom':
-    case 'bottom-right':
-      pos.y = m.bounds.y2;
-      break;
-  }
-  
-  // handle x
-  switch (anchor) {
-    case 'top-left':
-    case 'left':
-    case 'bottom-left':
       pos.x = m.bounds.x1;
+      pos.y = m.bounds.y1;
+      pos.x -= partial;
+      pos.y -= partial;
       break;
     case 'top':
-    case 'center':
-    case 'bottom':
       pos.x = (m.bounds.x2 - m.bounds.x1) / 2 + m.bounds.x1;
-      break;
-    case 'top-right':
-    case 'right':
-    case 'bottom-right':
-      pos.x = m.bounds.x2;
-      break;
-  }
-  
-  // handle offset
-  switch (anchor) {
-    case 'top':
+      pos.y = m.bounds.y1;
       pos.y -= offset;
       break;
-    case 'bottom':
-      pos.y += offset;
-      break;
-    case 'right':
-      pos.x -= offset;
+    case 'top-right':
+      pos.x = (m.bounds.x2 - m.bounds.x1) / 2 + m.bounds.x1;
+      pos.y = m.bounds.y1;
+      pos.x += partial;
+      pos.y -= partial;
       break;
     case 'left':
+      pos.x = m.bounds.x1;
+      pos.x -= offset;
+      pos.y = (m.bounds.y2 - m.bounds.y1) / 2 + m.bounds.y1;
+      break;
+   case 'center':
+      pos.x = (m.bounds.x2 - m.bounds.x1) / 2 + m.bounds.x1;
+      pos.y = (m.bounds.y2 - m.bounds.y1) / 2 + m.bounds.y1;
+      break;
+    case 'right':
+      pos.x = (m.bounds.x2 - m.bounds.x1) / 2 + m.bounds.x1;
+      pos.y = (m.bounds.y2 - m.bounds.y1) / 2 + m.bounds.y1;
       pos.x += offset;
       break;
-    case 'center':
+    case 'bottom-left':
+      pos.x = m.bounds.x1;
+      pos.y = m.bounds.y2;
+      pos.x -= partial;
+      pos.y += partial;     
       break;
-    default:
-      var partial = Math.floor(Math.sqrt(offset/2));
+    case 'bottom':
+      pos.x = (m.bounds.x2 - m.bounds.x1) / 2 + m.bounds.x1;
+      pos.y = m.bounds.y2;
+      pos.y += offset;
+      break;
+    case 'bottom-right':
+      pos.x = (m.bounds.x2 - m.bounds.x1) / 2 + m.bounds.x1;
+      pos.y = m.bounds.y2;
       pos.x += partial;
       pos.y += partial;
       break;
