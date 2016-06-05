@@ -101,17 +101,17 @@ prototype.batchTransform = function(input, data) {
         break;
 		}
 		
-		function bestAnchor(currentAnchor, allAnchors) {
+		function bestAnchor(currentAnchor, testAnchors) {
 			var fewest = allLabels.length;
 			var bestAnchor = anchor;
 			
-			var i = allAnchors.indexOf(anchor);
-			while (i < (allAnchors.indexOf(anchor) + allAnchors.length) && fewest != 0) {
+			var i = testAnchors.indexOf(anchor);
+			while (i < (testAnchors.indexOf(anchor) + testAnchors.length) && fewest != 0) {
 				var nextIndex = i;
-				if (nextIndex > allAnchors.length-1) {
-					nextIndex = i - allAnchors.length;
+				if (nextIndex > testAnchors.length-1) {
+					nextIndex = i - testAnchors.length;
 				}
-				var testAnchor = allAnchors[nextIndex];
+				var testAnchor = testAnchors[nextIndex];
 				label.bounds = center(label.bounds, position(mark, testAnchor, offset));      
 				var check = checkOcclusion(label, allMarks.concat(allLabels.concat(newLabels)));
 				
@@ -123,7 +123,7 @@ prototype.batchTransform = function(input, data) {
 				i++;
 			}
 			
-			if (fewest != 0 || (pos.x < label.bounds.width/2 || pos.y < label.bounds.height/2)) {
+			if (fewest != 0) {
 				opacity = 0;
 			} 
 			
@@ -134,6 +134,17 @@ prototype.batchTransform = function(input, data) {
     newLabels.push(label);    
     
     pos = position(mark, anchor, offset);
+		
+		function offEdge() {
+			var halfWidth = dimensions(label.bounds).width;
+			var halfHeight = dimensions(label.bounds).height;
+			
+			return (pos.x - halfWidth < 0 || pos.y - halfHeight < 0);	
+		}
+		
+		if (offEdge()) {
+			opacity = 0;
+		}
 		
 		Tuple.set(label, 'label_xc', pos.x);
 		Tuple.set(label, 'label_yc', pos.y);
