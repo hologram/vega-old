@@ -18,12 +18,10 @@ var ANCHORS = [
 function Label(graph) {  
   BatchTransform.prototype.init.call(this, graph);
   Transform.addParameters(this, {
-    buffer:      {type: 'value', default: 10},
     anchor:      {type: 'value', default: 'auto'},
     offset:      {type: 'value', default: 'auto'},
     color:       {type: 'value', default: 'black'},
     opacity:     {type: 'value', default: 1},
-    align:       {type: 'value', default: 'center'},
     orientation: {type: 'value', default: 'vertical'}
   });
 
@@ -39,12 +37,8 @@ function autoOffset(mark, orientation) {
       return orientation == 'horizontal' ? 10 : -10;
     case 'symbol':
       return 10;
-    case 'path':
-    case 'arc':
     case 'area':
     case 'line':
-    case 'rule':
-    case 'image':
     default:
       return 0;
   }
@@ -60,12 +54,8 @@ function autoAnchor(mark, orientation) {
       }
     case 'symbol':
       return 'right';
-    case 'path':
-    case 'arc':
     case 'area':
     case 'line':
-    case 'rule':
-    case 'image':
     default:
       return 0;
   }
@@ -75,12 +65,8 @@ function autoColor(mark, label) {
   switch (mark.mark.marktype) {
     case 'rect':
     case 'symbol':
-    case 'path':
-    case 'arc':
-    case 'area':
     case 'line':
-    case 'rule':
-    case 'image':
+    case 'area':
     default:
       return '#000';
   }
@@ -88,20 +74,19 @@ function autoColor(mark, label) {
 
 prototype.batchTransform = function(input, data) {
   var _orientation = this.param('orientation');  
-      _buffer      = this.param('buffer'),
       _anchor      = this.param('anchor'),
       _offset      = this.param('offset'),
-      _align       = this.param('align'),
       _color       = this.param('color'),
       _opacity     = this.param('opacity');
       
   var allLabels = data[0].mark.items;
   var allMarks = data[0].datum.mark.items;
 
+  var finalLabels = [];
   data.forEach(function(label, idx, arr) {
     var mark = label.datum;
-    mark.bounds.width = mark.bounds.x2 - mark.bounds.x1;
-    mark.bounds.height = mark.bounds.y2 - mark.bounds.x2; 
+    mark.bounds.width = mark.bounds.x ? 0 : mark.bounds.x2 - mark.bounds.x1;
+    mark.bounds.height = mark.bounds.y ? 0 : mark.bounds.y2 - mark.bounds.x2; 
     
     var color = _color == 'auto' ? autoColor(mark, label) : _color;
     var anchor = _anchor == 'auto' ? autoAnchor(mark, _orientation) : _anchor;
@@ -137,11 +122,15 @@ prototype.batchTransform = function(input, data) {
         var fewest = allLabels.length;
         var bestAnchor = anchor;
         
-        var i = 0;
-        while (i < ANCHORS.length && fewest != 0) {
-          var testAnchor = ANCHORS[ANCHORS.indexOf(anchor) + i];
+        var i = ANCHORS.indexOf(anchor);
+        while (i < (ANCHORS.indexOf(anchor) + ANCHORS.length) && fewest != 0) {
+          var nextIndex = i;
+          if (nextIndex > ANCHORS.length-1) {
+            nextIndex = i - ANCHORS.length;
+          }
+          var testAnchor = ANCHORS[nextIndex];
           label.bounds = center(label.bounds, position(mark, testAnchor, offset));      
-          var check = checkOcclusion(label, allMarks.concat(allLabels));
+          var check = checkOcclusion(label, allMarks.concat(allLabels).concat(finalLabels));
           
           if (check < fewest) {
             bestAnchor = testAnchor;
@@ -157,16 +146,12 @@ prototype.batchTransform = function(input, data) {
         
         label.bounds = center(label.bounds, position(mark, bestAnchor, offset));
         pos = position(mark, bestAnchor, offset);
-        if (label.text == 36) {
-          console.log(bestAnchor, pos);
-        }
         break;
-      case 'path':
-      case 'arc':
-      case 'area':
+ 
       case 'line':
-      case 'rule':
-      case 'image':
+      
+         break;
+      case 'area':
       default:
         break;
     }
@@ -177,7 +162,8 @@ prototype.batchTransform = function(input, data) {
     Tuple.set(label, 'label_color', color);
     Tuple.set(label, 'label_opacity', opacity);
     Tuple.set(label, 'label_baseline', pos.baseline);
-    Tuple.set(label, 'label_align', _align);
+    Tuple.set(label, 'label_align', pos.align);
+    finalLabels.push(label);
   });
 
   
@@ -225,65 +211,79 @@ function center(m, pos) {
 
 function position(m, anchor, offset) {
   var pos = {x: 0, y: 0};
+  if (m.x && m.y) {
+    pos.x = m.x;
+    pos.y = m.y;
+  }
+  
   var partial = Math.floor(Math.sqrt(offset/2));
 
   switch (anchor) {
     case 'top-left':
-      pos.x = m.bounds.x1;
-      pos.y = m.bounds.y1;
+      pos.x = pos.x || m.bounds.x1;
+      pos.y = pos.y || m.bounds.y1;
       pos.x -= partial;
       pos.y -= partial;
       pos.baseline = 'top';
+      pos.align = 'right';
       break;
     case 'top':
-      pos.x = (m.bounds.x2 - m.bounds.x1) / 2 + m.bounds.x1;
-      pos.y = m.bounds.y1;
+      pos.x = pos.x || (m.bounds.x2 - m.bounds.x1) / 2 + m.bounds.x1;
+      pos.y = pos.y || m.bounds.y1;
       pos.y -= offset;
       pos.baseline = 'top';
+      pos.align = 'center';
       break;
     case 'top-right':
-      pos.x = (m.bounds.x2 - m.bounds.x1) / 2 + m.bounds.x1;
-      pos.y = m.bounds.y1;
+      pos.x = pos.x || (m.bounds.x2 - m.bounds.x1) / 2 + m.bounds.x1;
+      pos.y = pos.y || m.bounds.y1;
       pos.x += partial;
       pos.y -= partial;
       pos.baseline = 'top';
+      pos.align = 'left';
       break;
     case 'left':
-      pos.x = m.bounds.x1;
+      pos.x = pos.x || m.bounds.x1;
       pos.x -= offset;
-      pos.y = (m.bounds.y2 - m.bounds.y1) / 2 + m.bounds.y1;
+      pos.y = pos.y || (m.bounds.y2 - m.bounds.y1) / 2 + m.bounds.y1;
       pos.baseline = 'middle';
+      pos.align = 'right';
       break;
    case 'center':
-      pos.x = (m.bounds.x2 - m.bounds.x1) / 2 + m.bounds.x1;
-      pos.y = (m.bounds.y2 - m.bounds.y1) / 2 + m.bounds.y1;
+      pos.x = pos.x || (m.bounds.x2 - m.bounds.x1) / 2 + m.bounds.x1;
+      pos.y = pos.y || (m.bounds.y2 - m.bounds.y1) / 2 + m.bounds.y1;
       pos.baseline = 'middle';
+      pos.align = 'center';
       break;
     case 'right':
-      pos.x = (m.bounds.x2 - m.bounds.x1) / 2 + m.bounds.x1;
-      pos.y = (m.bounds.y2 - m.bounds.y1) / 2 + m.bounds.y1;
+      pos.x = pos.x || (m.bounds.x2 - m.bounds.x1) / 2 + m.bounds.x1;
+      pos.y = pos.y || (m.bounds.y2 - m.bounds.y1) / 2 + m.bounds.y1;
       pos.x += offset;
       pos.baseline = 'middle';
+      pos.align = 'left';
       break;
     case 'bottom-left':
-      pos.x = m.bounds.x1;
-      pos.y = m.bounds.y2;
+      pos.x = pos.x || m.bounds.x1;
+      pos.y = pos.y || m.bounds.y2;
       pos.x -= partial;
       pos.y += partial;     
       pos.baseline = 'bottom';
+      pos.align = 'right';
       break;
     case 'bottom':
-      pos.x = (m.bounds.x2 - m.bounds.x1) / 2 + m.bounds.x1;
-      pos.y = m.bounds.y2;
+      pos.x = pos.x || (m.bounds.x2 - m.bounds.x1) / 2 + m.bounds.x1;
+      pos.y = pos.y || m.bounds.y2;
       pos.y += offset;
       pos.baseline = 'bottom';
+      pos.align = 'center';
       break;
     case 'bottom-right':
-      pos.x = (m.bounds.x2 - m.bounds.x1) / 2 + m.bounds.x1;
-      pos.y = m.bounds.y2;
+      pos.x = pos.x || (m.bounds.x2 - m.bounds.x1) / 2 + m.bounds.x1;
+      pos.y = pos.y || m.bounds.y2;
       pos.x += partial;
       pos.y += partial;
       pos.baseline = 'bottom';
+      pos.align = 'left';
       break;
   }
   
@@ -299,16 +299,6 @@ Label.schema = {
   "type": "object",
   "properties": {
     "type": {"enum": ["label"]},
-    "buffer": {
-      "oneOf": [
-        {
-          "type": "number",
-          "minimum": 0
-        },
-        {"$ref": "#/refs/signal"}
-      ],
-      "default": 10
-    },
     "anchor": {
       "oneOf": [
         {
@@ -346,15 +336,6 @@ Label.schema = {
         {"$ref": "#/refs/signal"}
       ],
       "default": 'black',
-    },
-    "align": {
-      "oneOf": [
-        {
-          "type": "string"
-        },
-        {"$ref": "#/refs/signal"}
-      ],
-      "default": 'center',
     },
     "orientation": {
       "oneOf": [
