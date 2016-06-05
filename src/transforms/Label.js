@@ -42,7 +42,8 @@ prototype.batchTransform = function(input, data) {
 			
 	var allLabels = data[0].mark.items;
 	var allMarks = data[0].datum.mark.items;
-
+  var newLabels = [];
+  
 	data.forEach(function(label, idx, arr) {
 		var mark = label.datum;
 
@@ -103,7 +104,7 @@ prototype.batchTransform = function(input, data) {
 				}
 				var testAnchor = allAnchors[nextIndex];
 				label.bounds = center(label.bounds, position(mark, testAnchor, offset, baseline));      
-				var check = checkOcclusion(label, allMarks.concat(allLabels));
+				var check = checkOcclusion(label, allMarks.concat(allLabels.concat(newLabels)));
 				
 				if (check < fewest) {
 					bestAnchor = testAnchor;
@@ -121,6 +122,7 @@ prototype.batchTransform = function(input, data) {
       anchor = bestAnchor;
 		}
     
+    newLabels.push(label);    
     
     pos = position(mark, anchor, offset, baseline);
 				
