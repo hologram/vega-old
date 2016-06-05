@@ -64,9 +64,12 @@ prototype.batchTransform = function(input, data) {
 		switch (mark.mark.marktype) {
 			case 'rect':			
 				var horizontalCondition = _orientation === 'horizontal' 
-						&& (dimensions(mark.bounds).width < dimensions(label.bounds).width);
+						&& (dimensions(mark.bounds).width < dimensions(label.bounds).width)
+						&& anchor === 'right';
 				var verticalCondition = _orientation === 'vertical' 
-						&& (dimensions(mark.bounds).height < dimensions(label.bounds).height);
+						&& (dimensions(mark.bounds).height < dimensions(label.bounds).height)
+						&& anchor === 'top';
+				
 				
 				if (horizontalCondition || verticalCondition) {
 					offset *= -1;
@@ -74,6 +77,11 @@ prototype.batchTransform = function(input, data) {
 				} else if (!boxInBox(label.bounds, mark.bounds)) {
 					color = '#000000';
 				}
+				
+				if (!boxInBox(label.bounds, mark.bounds) && occludes(label, mark)) {
+					opacity = 0;
+				}
+				
 				break;
 				
       case 'line':
@@ -198,7 +206,7 @@ function checkOcclusion(label, scene) {
 }
 
 function occludes(a, b) {
-	if (('x' in b) && ('y' in b)) {
+	if ((b.mark.marktype === 'line')) {
 		return a.bounds.x1 < b.x && a.bounds.x2 > b.x && a.bounds.y1 < b.y && a.bounds.y2 > b.y;
 	}
 	return a.bounds.x1 < b.bounds.x2 && a.bounds.x2 > b.bounds.x1 && a.bounds.y1 < b.bounds.y2 && a.bounds.y2 > b.bounds.y1;
