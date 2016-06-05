@@ -167,7 +167,7 @@ function autoOffset(mark, orientation) {
 		case 'rect':
 			return orientation === 'horizontal' ? 10 : -10;
 		case 'symbol':
-			return 15;
+			return 7;
 		case 'area':
 		case 'line':
 			return 15;
