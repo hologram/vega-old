@@ -136,8 +136,8 @@ prototype.batchTransform = function(input, data) {
     pos = position(mark, anchor, offset);
 		
 		function offEdge() {
-			var halfWidth = dimensions(label.bounds).width;
-			var halfHeight = dimensions(label.bounds).height;
+			var halfWidth = dimensions(label.bounds).width/2;
+			var halfHeight = dimensions(label.bounds).height/2;
 			
 			return (pos.x - halfWidth < 0 || pos.y - halfHeight < 0);	
 		}
