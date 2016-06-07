@@ -52,7 +52,7 @@ prototype.batchTransform = function(input, data) {
 		var anchor = _anchor == 'auto' ? autoAnchor(mark, _orientation) : _anchor;
     
 		var offset = _offset == 'auto' ? autoOffset(mark, _orientation) : _offset;
-		offset *= ((_orientation == 'horizontal') ? -1 : 1);
+		// offset *= ((_orientation == 'horizontal') ? -1 : 1);
 		
 		var opacity = _opacity;
     var baseline = _baseline;
@@ -64,15 +64,15 @@ prototype.batchTransform = function(input, data) {
 		switch (mark.mark.marktype) {
 			case 'rect':			
 				var horizontalCondition = _orientation === 'horizontal' 
-						&& (dimensions(mark.bounds).width < dimensions(label.bounds).width)
+						&& (dimensions(mark.bounds).width < (dimensions(label.bounds).width) + (Math.abs(offset) * 2))
 						&& anchor === 'right';
 				var verticalCondition = _orientation === 'vertical' 
-						&& (dimensions(mark.bounds).height < dimensions(label.bounds).height)
+						&& (dimensions(mark.bounds).height < (dimensions(label.bounds).height) + (Math.abs(offset) * 2))
 						&& anchor === 'top';
-				
 				
 				if (horizontalCondition || verticalCondition) {
 					offset *= -1;
+					label.bounds = center(label.bounds, position(mark, anchor, offset));
 				}
 				
 				if (boxInBox(label.bounds, mark.bounds)) {
