@@ -48,11 +48,10 @@ prototype.batchTransform = function(input, data) {
 	data.forEach(function(label, idx, arr) {
 		var mark = label.datum;
 
-		var color = _color == 'auto' ? autoColor(mark) : _color;
-		var anchor = _anchor == 'auto' ? autoAnchor(mark, _orientation) : _anchor;
-    
-		var offset = _offset == 'auto' ? autoOffset(mark, _orientation) : _offset;
-		// offset *= ((_orientation == 'horizontal') ? -1 : 1);
+		var color = _color === 'auto' ? autoColor(mark) : _color;
+		console.log(1, color);
+		var anchor = _anchor === 'auto' ? autoAnchor(mark, _orientation) : _anchor;
+		var offset = _offset === 'auto' ? autoOffset(mark, _orientation) : _offset;
 		
 		var opacity = _opacity;
     var baseline = _baseline;
@@ -64,19 +63,26 @@ prototype.batchTransform = function(input, data) {
 		switch (mark.mark.marktype) {
 			case 'rect':			
 				var horizontalCondition = _orientation === 'horizontal' 
-						&& (dimensions(mark.bounds).width < (dimensions(label.bounds).width) + (Math.abs(offset) * 2))
+						&& (dimensions(mark.bounds).width < (dimensions(label.bounds).width) + (Math.abs(offset) * 2) && offset < 0)
 						&& anchor === 'right';
 				var verticalCondition = _orientation === 'vertical' 
-						&& (dimensions(mark.bounds).height < (dimensions(label.bounds).height) + (Math.abs(offset) * 2))
+						&& (dimensions(mark.bounds).height < (dimensions(label.bounds).height) + (Math.abs(offset) * 2) && offset < 0)
 						&& anchor === 'top';
 				
 				if (horizontalCondition || verticalCondition) {
-					offset *= -1;
-					label.bounds = center(label.bounds, position(mark, anchor, offset));
+					if (_offset === 'auto') {
+						offset *= -1;
+						label.bounds = center(label.bounds, position(mark, anchor, offset));
+					} else {
+						opacity = 0;
+					}
 				}
 				
 				if (boxInBox(label.bounds, mark.bounds)) {
-					color = flipColor(color);
+					color = _color === 'auto' ? flipColor(color) : color;
+					console.log(2, color);
+				} else {
+					console.log(3, color);					
 				}
 				
 				if (!boxInBox(label.bounds, mark.bounds) && occludes(label, mark)) {
@@ -165,11 +171,11 @@ prototype.batchTransform = function(input, data) {
 
 	function autoColor(mark) {
 		var color = mark.fill || mark.stroke || '#fff';
-		return (luma(color) >= 120) ? '#000' : '#fff';
+		return (luma(color) >= 120) ? '#000000' : '#fff';
 	}
 	
 	function flipColor(color) {
-		return (color === '#000') ? '#fff' : ((color === '#fff') ? '#000' : color);
+		return (color === '#000000') ? '#fff' : ((color === '#fff') ? '#000000' : color);
 	}
 	
 	// color can be a hx string or an array of RGB values 0-255 
@@ -193,7 +199,7 @@ prototype.batchTransform = function(input, data) {
 function autoOffset(mark, orientation) {
 	switch (mark.mark.marktype) {
 		case 'rect':
-			return orientation === 'horizontal' ? 10 : -10;
+			return -10;
 		case 'symbol':
 			return 7;
 		case 'area':
@@ -405,8 +411,8 @@ Label.schema = {
 			"properties": {
 				"xc": {"type": "string", "default": 0},
 				"yc": {"type": "string", "default": 0},
-				"color": {"type": "string", "default": "black"},
-				"align": {"type": "string", "default": "black"},
+				"color": {"type": "string", "default": "#000000"},
+				"align": {"type": "string", "default": "#000000"},
 				"baseline": {"type": "string", "default": "middle"},
 				"opacity": {"type": "string", "default": 1}
 			}
