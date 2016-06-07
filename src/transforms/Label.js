@@ -21,7 +21,7 @@ function Label(graph) {
 	Transform.addParameters(this, {
 		anchor:      {type: 'value', default: 'auto'},
 		offset:      {type: 'value', default: 'auto'},
-		color:       {type: 'value', default: 'black'},
+		color:       {type: 'value', default: 'auto'},
 		opacity:     {type: 'value', default: 1},
 		orientation: {type: 'value', default: 'vertical'}
 	});
@@ -48,7 +48,7 @@ prototype.batchTransform = function(input, data) {
 	data.forEach(function(label, idx, arr) {
 		var mark = label.datum;
 
-		var color = _color == 'auto' ? autoColor(mark, label) : _color;
+		var color = _color == 'auto' ? autoColor(mark) : _color;
 		var anchor = _anchor == 'auto' ? autoAnchor(mark, _orientation) : _anchor;
     
 		var offset = _offset == 'auto' ? autoOffset(mark, _orientation) : _offset;
@@ -73,9 +73,8 @@ prototype.batchTransform = function(input, data) {
 				
 				if (horizontalCondition || verticalCondition) {
 					offset *= -1;
-					color = '#000000';
-				} else if (!boxInBox(label.bounds, mark.bounds)) {
-					color = '#000000';
+				} else {
+					color = autoColor(mark, true);
 				}
 				
 				if (!boxInBox(label.bounds, mark.bounds) && occludes(label, mark)) {
@@ -162,6 +161,29 @@ prototype.batchTransform = function(input, data) {
 	return input;
 };
 
+	function autoColor(mark, inside) {
+		var color = mark.fill || mark.stroke || '#fff';
+		return (luma(color) >= 120 && inside) ? '#fff' : '#000';
+	}
+	
+	// color can be a hx string or an array of RGB values 0-255 
+	function luma(color) { 
+		var rgb = (typeof color === 'string') ? hexToRGBArray(color) : color;
+		return (0.2126 * rgb[0]) + (0.7152 * rgb[1]) + (0.0722 * rgb[2]); // SMPTE C, Rec. 709 weightings
+	}
+	
+	function hexToRGBArray(color) {
+		color = color.substr(1);
+		if (color.length === 3)
+			color = color.charAt(0) + color.charAt(0) + color.charAt(1) + color.charAt(1) + color.charAt(2) + color.charAt(2);
+		else if (color.length !== 6)
+			throw('Invalid hex color: ' + color);
+		var rgb = [];
+		for (var i = 0; i <= 2; i++)
+			rgb[i] = parseInt(color.substr(i * 2, 2), 16);
+		return rgb;
+	}
+
 function autoOffset(mark, orientation) {
 	switch (mark.mark.marktype) {
 		case 'rect':
@@ -193,18 +215,6 @@ function autoAnchor(mark, orientation) {
 			return 'top';
 	}
 }
-
-function autoColor(mark, label) {
-	switch (mark.mark.marktype) {
-		case 'rect':
-		case 'symbol':
-		case 'line':
-		case 'area':
-		default:
-			return '#000';
-	}
-}
-
 
 function checkOcclusion(label, scene) {
 	var occlusions = 0;
@@ -372,7 +382,7 @@ Label.schema = {
 				},
 				{"$ref": "#/refs/signal"}
 			],
-			"default": 'black',
+			"default": 'auto',
 		},
 		"orientation": {
 			"oneOf": [
