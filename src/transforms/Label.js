@@ -73,8 +73,10 @@ prototype.batchTransform = function(input, data) {
 				
 				if (horizontalCondition || verticalCondition) {
 					offset *= -1;
-				} else {
-					color = autoColor(mark, true);
+				}
+				
+				if (boxInBox(label.bounds, mark.bounds)) {
+					color = flipColor(color);
 				}
 				
 				if (!boxInBox(label.bounds, mark.bounds) && occludes(label, mark)) {
@@ -161,9 +163,13 @@ prototype.batchTransform = function(input, data) {
 	return input;
 };
 
-	function autoColor(mark, inside) {
+	function autoColor(mark) {
 		var color = mark.fill || mark.stroke || '#fff';
-		return (luma(color) >= 120 && inside) ? '#fff' : '#000';
+		return (luma(color) >= 120) ? '#000' : '#fff';
+	}
+	
+	function flipColor(color) {
+		return (color === '#000') ? '#fff' : ((color === '#fff') ? '#000' : color);
 	}
 	
 	// color can be a hx string or an array of RGB values 0-255 
