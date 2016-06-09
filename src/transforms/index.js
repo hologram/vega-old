@@ -14,6 +14,7 @@ module.exports = {
   hierarchy:    require('./Hierarchy'),
   impute:       require('./Impute'),
   lookup:       require('./Lookup'),
+  label:        require('./Label'),
   pie:          require('./Pie'),
   rank:         require('./Rank'),
   sort:         require('./Sort'),
