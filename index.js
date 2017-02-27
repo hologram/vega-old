@@ -45,6 +45,7 @@ import * as force from 'vega-force';
 import * as hierarchy from 'vega-hierarchy';
 import * as voronoi from 'vega-voronoi';
 import * as wordcloud from 'vega-wordcloud';
+import * as labels from 'vega-labels';
 import * as xfilter from 'vega-crossfilter';
 /* eslint-enable */
 

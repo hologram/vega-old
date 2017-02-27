@@ -73,6 +73,7 @@
     "vega-view": ">=1.0.0-beta",
     "vega-voronoi": ">=1.0.0-beta",
     "vega-wordcloud": ">=1.0.0-beta",
+    "vega-labels": ">=1.0.0-beta",
     "yargs": "4"
   },
   "devDependencies": {
